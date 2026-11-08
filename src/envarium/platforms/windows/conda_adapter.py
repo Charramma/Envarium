@@ -50,7 +50,7 @@ def read_conda_python_version(env_path: Path) -> str:
     return ""
 
 
-def _root_prefix(runner: SubprocessRunner, executable: Path) -> Path | None:
+def read_root_prefix(runner: SubprocessRunner, executable: Path) -> Path | None:
     result = runner.run([executable, "info", "--json"])
     if not result.ok:
         logger.warning("conda info 失败：%s", result.stderr.strip())
@@ -59,7 +59,7 @@ def _root_prefix(runner: SubprocessRunner, executable: Path) -> Path | None:
     return Path(prefix) if prefix else None
 
 
-def _build_environment(path: Path, root_prefix: Path | None) -> Environment | None:
+def build_environment(path: Path, root_prefix: Path | None) -> Environment | None:
     interpreter = path / "python.exe"
     if not interpreter.is_file():
         return None
@@ -81,10 +81,10 @@ def list_conda_environments(runner: SubprocessRunner, executable: Path) -> list[
         logger.warning("conda env list 失败：%s", result.stderr.strip())
         return []
 
-    root_prefix = _root_prefix(runner, executable)
+    root_prefix = read_root_prefix(runner, executable)
     environments: list[Environment] = []
     for raw_path in json.loads(result.stdout).get("envs", []):
-        environment = _build_environment(Path(raw_path), root_prefix)
+        environment = build_environment(Path(raw_path), root_prefix)
         if environment is not None:
             environments.append(environment)
     return environments

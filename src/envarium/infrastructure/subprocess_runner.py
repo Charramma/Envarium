@@ -5,7 +5,7 @@ from __future__ import annotations
 import locale
 import logging
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -52,7 +52,13 @@ class SubprocessRunner:
     def __init__(self, timeout: float = DEFAULT_TIMEOUT_SECONDS) -> None:
         self._timeout = timeout
 
-    def run(self, command: Sequence[str | Path], *, cwd: Path | None = None) -> CommandResult:
+    def run(
+        self,
+        command: Sequence[str | Path],
+        *,
+        cwd: Path | None = None,
+        timeout: float | None = None,
+    ) -> CommandResult:
         args = tuple(str(part) for part in command)
         logger.debug("执行命令：%s", args)
         try:
@@ -60,12 +66,12 @@ class SubprocessRunner:
                 args,
                 cwd=cwd,
                 capture_output=True,
-                timeout=self._timeout,
+                timeout=timeout or self._timeout,
                 creationflags=_NO_WINDOW,
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
-            raise SubprocessTimeoutError(args, self._timeout) from exc
+            raise SubprocessTimeoutError(args, timeout or self._timeout) from exc
         result = CommandResult(
             args,
             completed.returncode,
@@ -79,3 +85,33 @@ class SubprocessRunner:
             result.stderr,
         )
         return result
+
+    def stream(
+        self,
+        command: Sequence[str | Path],
+        *,
+        on_line: Callable[[str], None],
+        cwd: Path | None = None,
+    ) -> int:
+        """逐行输出到回调，用于安装/卸载等需要实时日志的长操作。"""
+        args = tuple(str(part) for part in command)
+        logger.debug("执行命令（流式）：%s", args)
+        process = subprocess.Popen(
+            args,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            creationflags=_NO_WINDOW,
+        )
+        try:
+            assert process.stdout is not None
+            for raw_line in process.stdout:
+                line = _decode_output(raw_line).rstrip("\r\n")
+                if line:
+                    on_line(line)
+            returncode = process.wait()
+        finally:
+            if process.stdout is not None:
+                process.stdout.close()
+        logger.debug("命令结束 rc=%s", returncode)
+        return returncode

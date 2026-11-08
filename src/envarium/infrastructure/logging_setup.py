@@ -14,7 +14,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
 
 def log_directory() -> Path:
     """日志目录（不存在时创建）。"""
-    return Path(user_log_dir("Envarium", ensure_exists=True))
+    return Path(user_log_dir("Envarium", appauthor=False, ensure_exists=True))
 
 
 def configure_logging(level: int = logging.INFO) -> None:

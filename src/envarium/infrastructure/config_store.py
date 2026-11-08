@@ -10,7 +10,7 @@ from pathlib import Path
 from platformdirs import user_config_dir
 from pydantic import BaseModel, ConfigDict, Field
 
-from envarium.core.models import Environment
+from envarium.core.models import Environment, TerminalKind
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,9 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     theme: Theme = Theme.LIGHT
+    terminal: TerminalKind = TerminalKind.POWERSHELL
     venv_scan_roots: list[Path] = Field(default_factory=list)
+    manual_environments: list[Environment] = Field(default_factory=list)
     known_environments: list[Environment] = Field(default_factory=list)
 
 
@@ -32,7 +34,7 @@ class ConfigStore:
     """配置的唯一读写入口。"""
 
     def __init__(self, path: Path | None = None) -> None:
-        self._path = path or Path(user_config_dir("Envarium")) / "config.json"
+        self._path = path or Path(user_config_dir("Envarium", appauthor=False)) / "config.json"
 
     @property
     def path(self) -> Path:

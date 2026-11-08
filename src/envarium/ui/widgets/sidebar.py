@@ -46,3 +46,9 @@ class Sidebar(QWidget):
         version_label = QLabel(f"v{version}")
         version_label.setObjectName("VersionLabel")
         layout.addWidget(version_label)
+
+    def select(self, index: int) -> None:
+        button = self._group.button(index)
+        if button is not None:
+            button.setChecked(True)
+            self.page_selected.emit(index)
