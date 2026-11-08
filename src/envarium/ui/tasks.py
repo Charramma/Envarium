@@ -17,10 +17,11 @@ class _JobSignals(QObject):
     done = Signal(object)
     failed = Signal(object)
     finished = Signal()
+    line = Signal(str)
 
 
 class _Job(QRunnable):
-    def __init__(self, work: Callable[[], Any]) -> None:
+    def __init__(self, work: Callable[[Callable[[str], None]], Any]) -> None:
         super().__init__()
         self.signals = _JobSignals()
         self._work = work
@@ -28,7 +29,7 @@ class _Job(QRunnable):
 
     def run(self) -> None:
         try:
-            result = self._work()
+            result = self._work(self.signals.line.emit)
         except Exception as error:
             logger.exception("后台任务失败")
             self.signals.failed.emit(error)
@@ -53,7 +54,31 @@ class BackgroundRunner(QObject):
         on_done: Callable[[T], None],
         on_error: Callable[[Exception], None] | None = None,
     ) -> None:
+        """执行无输出的工作函数。"""
+        self._start(lambda _log: work(), on_line=None, on_done=on_done, on_error=on_error)
+
+    def submit_stream(
+        self,
+        work: Callable[[Callable[[str], None]], T],
+        *,
+        on_line: Callable[[str], None],
+        on_done: Callable[[T], None],
+        on_error: Callable[[Exception], None] | None = None,
+    ) -> None:
+        """执行会把过程日志逐行推给界面的工作函数。"""
+        self._start(work, on_line=on_line, on_done=on_done, on_error=on_error)
+
+    def _start(
+        self,
+        work: Callable[[Callable[[str], None]], Any],
+        *,
+        on_line: Callable[[str], None] | None,
+        on_done: Callable[[Any], None],
+        on_error: Callable[[Exception], None] | None,
+    ) -> None:
         job = _Job(work)
+        if on_line is not None:
+            job.signals.line.connect(on_line, Qt.ConnectionType.QueuedConnection)
         job.signals.done.connect(on_done, Qt.ConnectionType.QueuedConnection)
         if on_error is not None:
             job.signals.failed.connect(on_error, Qt.ConnectionType.QueuedConnection)

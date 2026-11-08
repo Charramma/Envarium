@@ -47,6 +47,17 @@ QLabel#EmptyTitle {
 QLabel#DetailValue {
     color: $text;
 }
+QLabel#DangerText {
+    color: $danger;
+    font-weight: 600;
+}
+QLabel#SectionTitle {
+    font-weight: 600;
+}
+QDialog, QMessageBox, QProgressDialog {
+    background: $window;
+    color: $text;
+}
 QPushButton[nav="true"] {
     background: transparent;
     border: none;
@@ -84,6 +95,14 @@ QPushButton#Primary {
 QPushButton#Primary:hover {
     background: $accent_hover;
 }
+QPushButton#Danger {
+    background: transparent;
+    border: 1px solid $danger;
+    color: $danger;
+}
+QPushButton#Danger:hover {
+    background: $hover;
+}
 QLineEdit, QComboBox, QListWidget {
     background: $surface;
     border: 1px solid $border;
@@ -93,6 +112,45 @@ QLineEdit, QComboBox, QListWidget {
 }
 QLineEdit:focus, QComboBox:focus {
     border: 1px solid $accent;
+}
+QPlainTextEdit {
+    background: $surface_alt;
+    border: 1px solid $border;
+    border-radius: 6px;
+    color: $text;
+    padding: 6px;
+}
+QTabWidget::pane {
+    border: 1px solid $border;
+    border-radius: 6px;
+    top: -1px;
+}
+QTabBar::tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: $text_secondary;
+    padding: 7px 14px;
+}
+QTabBar::tab:selected {
+    border-bottom: 2px solid $accent;
+    color: $accent;
+}
+QMenu {
+    background: $surface;
+    border: 1px solid $border;
+    padding: 4px;
+}
+QMenu::item {
+    border-radius: 4px;
+    padding: 6px 22px 6px 12px;
+}
+QMenu::item:selected {
+    background: $accent_soft;
+    color: $text;
+}
+QMenu::item:disabled {
+    color: $text_secondary;
 }
 QComboBox QAbstractItemView {
     background: $surface;

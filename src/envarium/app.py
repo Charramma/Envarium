@@ -9,8 +9,10 @@ from PySide6.QtWidgets import QApplication
 from envarium.infrastructure.config_store import ConfigStore
 from envarium.infrastructure.logging_setup import configure_logging
 from envarium.infrastructure.subprocess_runner import SubprocessRunner
+from envarium.platforms.windows.operations import WindowsOperations
 from envarium.platforms.windows.provider import WindowsProvider
 from envarium.services.environment_service import EnvironmentService
+from envarium.services.package_service import PackageService
 from envarium.ui.main_window import MainWindow
 from envarium.ui.theme.style import apply_theme
 
@@ -27,7 +29,12 @@ def main() -> int:
     config = config_store.load()
     apply_theme(app, config.theme)
 
-    service = EnvironmentService(WindowsProvider(SubprocessRunner()), config_store)
-    window = MainWindow(service, config_store, config)
+    runner = SubprocessRunner()
+    operations = WindowsOperations(runner)
+    environment_service = EnvironmentService(
+        WindowsProvider(runner), operations, config_store
+    )
+    package_service = PackageService(operations)
+    window = MainWindow(environment_service, package_service, config_store, config)
     window.show()
     return app.exec()

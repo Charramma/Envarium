@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from envarium.core.models import Environment, EnvKind
+from envarium.core.models import Environment, EnvKind, TerminalKind
 from envarium.infrastructure.config_store import AppConfig, ConfigStore, Theme
 
 
@@ -24,7 +24,9 @@ def test_config_roundtrip(tmp_path: Path) -> None:
     store.save(
         AppConfig(
             theme=Theme.DARK,
+            terminal=TerminalKind.CMD,
             venv_scan_roots=[tmp_path],
+            manual_environments=[environment],
             known_environments=[environment],
         )
     )
@@ -32,5 +34,7 @@ def test_config_roundtrip(tmp_path: Path) -> None:
     loaded = store.load()
 
     assert loaded.theme is Theme.DARK
+    assert loaded.terminal is TerminalKind.CMD
     assert loaded.venv_scan_roots == [tmp_path]
+    assert loaded.manual_environments == [environment]
     assert loaded.known_environments == [environment]
