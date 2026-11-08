@@ -8,7 +8,6 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -27,27 +26,42 @@ from PySide6.QtWidgets import (
 )
 
 from envarium.core.errors import AppError, ErrorKind
-from envarium.core.models import Environment, EnvironmentMetrics, PackageDiff
+from envarium.core.models import (
+    CondaChannel,
+    Environment,
+    EnvironmentMetrics,
+    EnvKind,
+    PackageDiff,
+)
 from envarium.services.environment_service import CondaRequest, EnvironmentService, VenvRequest
-from envarium.ui.formatting import format_size
-from envarium.ui.labels import KIND_LABELS
+from envarium.ui.formatting import breakable_path, format_size
+from envarium.ui.labels import CHANNEL_LABELS, KIND_LABELS
 from envarium.ui.tasks import BackgroundRunner
+from envarium.ui.widgets.combo import ComboBox
 
 
 class NewEnvironmentDialog(QDialog):
     """收集创建 venv / conda 环境所需的输入。"""
 
     def __init__(
-        self, environments: Sequence[Environment], parent: QWidget | None = None
+        self,
+        environments: Sequence[Environment],
+        service: EnvironmentService,
+        runner: BackgroundRunner,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("新建环境")
         self.setMinimumWidth(500)
+        self._service = service
+        self._runner = runner
         self._request: VenvRequest | CondaRequest | None = None
+        self._versions_channel: CondaChannel | None = None
 
         self._tabs = QTabWidget()
         self._tabs.addTab(self._build_venv_tab(environments), "venv 虚拟环境")
         self._tabs.addTab(self._build_conda_tab(), "conda 环境")
+        self._tabs.currentChanged.connect(self._on_tab_changed)
 
         buttons = QDialogButtonBox()
         create = buttons.addButton("创建", QDialogButtonBox.ButtonRole.AcceptRole)
@@ -81,17 +95,22 @@ class NewEnvironmentDialog(QDialog):
         layout.setVerticalSpacing(10)
         layout.setColumnStretch(1, 1)
 
-        self._base_combo = QComboBox()
+        self._base_combo = ComboBox()
         for environment in environments:
+            if environment.kind is not EnvKind.PYTHON or not environment.available:
+                continue
             version = environment.version or "未知版本"
             self._base_combo.addItem(
                 f"{environment.name} · {version}", str(environment.interpreter)
             )
         if self._base_combo.count() == 0:
-            self._base_combo.addItem("未发现可用的 Python 解释器", "")
+            self._base_combo.addItem("未发现官网安装的 Python，请先安装或使用 conda 环境", "")
+
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("例如 my-project")
 
         self._target_edit = QLineEdit()
-        self._target_edit.setPlaceholderText(r"例如 D:\venvs\my-project")
+        self._target_edit.setPlaceholderText(r"父目录，例如 D:\venvs")
         browse = QPushButton("浏览…")
         browse.clicked.connect(self._choose_target)
         target_row = QHBoxLayout()
@@ -101,15 +120,18 @@ class NewEnvironmentDialog(QDialog):
 
         self._system_site = QCheckBox("允许访问基础解释器的全局 site-packages")
 
-        hint = QLabel("创建完成后会自动加入环境库。")
+        hint = QLabel("环境将创建在「目标目录 / 环境名」下，创建完成后会自动加入环境库。")
         hint.setObjectName("Hint")
+        hint.setWordWrap(True)
 
         layout.addWidget(QLabel("基础解释器"), 0, 0)
         layout.addWidget(self._base_combo, 0, 1)
-        layout.addWidget(QLabel("目标目录"), 1, 0)
-        layout.addLayout(target_row, 1, 1)
-        layout.addWidget(self._system_site, 2, 1)
-        layout.addWidget(hint, 3, 1)
+        layout.addWidget(QLabel("环境名"), 1, 0)
+        layout.addWidget(self._name_edit, 1, 1)
+        layout.addWidget(QLabel("目标目录"), 2, 0)
+        layout.addLayout(target_row, 2, 1)
+        layout.addWidget(self._system_site, 3, 1)
+        layout.addWidget(hint, 4, 1)
         return tab
 
     def _build_conda_tab(self) -> QWidget:
@@ -122,19 +144,72 @@ class NewEnvironmentDialog(QDialog):
 
         self._conda_name = QLineEdit()
         self._conda_name.setPlaceholderText("例如 data-science")
-        self._conda_version = QLineEdit()
-        self._conda_version.setPlaceholderText("留空使用最新版本，例如 3.12")
 
-        hint = QLabel("环境将创建在 conda 的 envs 目录下，由 conda 下载并安装指定版本。")
+        self._channel_combo = ComboBox()
+        for channel in CondaChannel:
+            self._channel_combo.addItem(CHANNEL_LABELS[channel], channel.value)
+
+        self._conda_version = ComboBox()
+        self._conda_version.setEnabled(False)
+
+        hint = QLabel(
+            "环境将创建在 conda 的 envs 目录下；版本列表来自所选源当前可安装的内容。"
+        )
         hint.setObjectName("Hint")
         hint.setWordWrap(True)
 
         layout.addWidget(QLabel("环境名称"), 0, 0)
         layout.addWidget(self._conda_name, 0, 1)
-        layout.addWidget(QLabel("Python 版本"), 1, 0)
-        layout.addWidget(self._conda_version, 1, 1)
-        layout.addWidget(hint, 2, 1)
+        layout.addWidget(QLabel("源"), 1, 0)
+        layout.addWidget(self._channel_combo, 1, 1)
+        layout.addWidget(QLabel("Python 版本"), 2, 0)
+        layout.addWidget(self._conda_version, 2, 1)
+        layout.addWidget(hint, 3, 1)
+        self._channel_combo.currentIndexChanged.connect(
+            lambda _index: self._reload_conda_versions()
+        )
         return tab
+
+    def _on_tab_changed(self, index: int) -> None:
+        if index == 1 and self._versions_channel is None:
+            self._reload_conda_versions()
+
+    def _reload_conda_versions(self) -> None:
+        channel = CondaChannel(self._channel_combo.currentData())
+        if channel is self._versions_channel:
+            return
+        self._versions_channel = channel
+        self._conda_version.clear()
+        self._conda_version.setEnabled(False)
+        self._add_disabled_version("正在获取可用版本…")
+        self._runner.submit(
+            lambda: self._service.conda_python_versions(channel),
+            on_done=lambda versions: self._show_conda_versions(channel, versions),
+            on_error=lambda error: self._show_conda_versions(
+                channel, [], str(error)
+            ),
+        )
+
+    def _show_conda_versions(
+        self, channel: CondaChannel, versions: list[str], error: str = ""
+    ) -> None:
+        if channel is not self._versions_channel:
+            return
+        self._conda_version.clear()
+        self._conda_version.addItem("Latest（最新版本）", "")
+        for version in versions:
+            self._conda_version.addItem(version, version)
+        if error:
+            self._add_disabled_version("获取可用版本失败")
+            self._conda_version.setToolTip(error)
+        self._conda_version.setEnabled(True)
+
+    def _add_disabled_version(self, text: str) -> None:
+        index = self._conda_version.count()
+        self._conda_version.addItem(text, None)
+        item = self._conda_version.model().item(index)
+        if item is not None:
+            item.setEnabled(False)
 
     def _choose_target(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, "选择 venv 目标目录")
@@ -149,21 +224,30 @@ class NewEnvironmentDialog(QDialog):
                     "未发现可用的基础解释器，请先安装 Python 或 conda。",
                     kind=ErrorKind.INVALID,
                 )
-            raw_target = self._target_edit.text().strip()
-            if not raw_target:
+            name = self._name_edit.text().strip()
+            if not name:
+                raise AppError("请填写环境名。", kind=ErrorKind.INVALID)
+            if Path(name).name != name:
+                raise AppError("环境名不能包含路径分隔符。", kind=ErrorKind.INVALID)
+            raw_parent = self._target_edit.text().strip()
+            if not raw_parent:
                 raise AppError("请填写目标目录。", kind=ErrorKind.INVALID)
-            target = Path(raw_target)
-            if not target.is_absolute():
+            parent = Path(raw_parent)
+            if not parent.is_absolute():
                 raise AppError("目标目录必须是绝对路径。", kind=ErrorKind.INVALID)
             return VenvRequest(
                 interpreter=Path(interpreter),
-                target=target,
+                target=parent / name,
                 system_site_packages=self._system_site.isChecked(),
             )
         name = self._conda_name.text().strip()
         if not name:
             raise AppError("请填写 conda 环境名称。", kind=ErrorKind.INVALID)
-        return CondaRequest(name=name, python_version=self._conda_version.text().strip())
+        return CondaRequest(
+            name=name,
+            python_version=self._conda_version.currentData() or "",
+            channel=CondaChannel(self._channel_combo.currentData()),
+        )
 
 
 class DeleteEnvironmentDialog(QDialog):
@@ -196,10 +280,13 @@ class DeleteEnvironmentDialog(QDialog):
         for row, (key, value) in enumerate(rows):
             key_label = QLabel(key)
             key_label.setObjectName("DetailKey")
-            value_label = QLabel(value)
+            is_path = key == "环境路径"
+            value_label = QLabel(breakable_path(value) if is_path else value)
             value_label.setObjectName("DetailValue")
             value_label.setWordWrap(True)
             value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            if is_path:
+                value_label.setToolTip(value)
             grid.addWidget(key_label, row, 0, Qt.AlignmentFlag.AlignTop)
             grid.addWidget(value_label, row, 1)
 
@@ -289,8 +376,8 @@ class CompareDialog(QDialog):
         self._only_diff.toggled.connect(self._apply_filter)
         self._reload()
 
-    def _make_combo(self, selected_key: str) -> QComboBox:
-        combo = QComboBox()
+    def _make_combo(self, selected_key: str) -> ComboBox:
+        combo = ComboBox()
         for environment in self._environments.values():
             version = environment.version or "未知版本"
             combo.addItem(f"{environment.name} · {version}", environment.key)

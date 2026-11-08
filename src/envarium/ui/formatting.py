@@ -18,3 +18,8 @@ def format_size(size_bytes: int) -> str:
 
 def format_time(value: datetime) -> str:
     return value.strftime("%Y-%m-%d %H:%M")
+
+
+def breakable_path(path: str) -> str:
+    """在路径分隔符后插入换行机会，使长路径在窄区域中完整换行显示。"""
+    return path.replace("\\", "\\\u200b").replace("/", "/\u200b")

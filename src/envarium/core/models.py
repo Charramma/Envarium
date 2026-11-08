@@ -19,6 +19,13 @@ class EnvKind(StrEnum):
     VENV = "venv"
 
 
+class CondaChannel(StrEnum):
+    """创建 conda 环境时可选的频道。"""
+
+    DEFAULTS = "defaults"
+    CONDA_FORGE = "conda-forge"
+
+
 class TerminalKind(StrEnum):
     """可唤起的外部终端。"""
 
@@ -112,6 +119,48 @@ class PackageDiff(BaseModel):
     def differs(self) -> bool:
         return self.left_version != self.right_version
 
+
+class SystemInfo(BaseModel):
+    """操作系统标识。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    release: str
+    version: str
+    machine: str
+    display: str
+
+
+class PythonToolchain(BaseModel):
+    """系统安装的 Python 及其附带的 pip。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    environment: Environment
+    pip_version: str = ""
+    pip_path: Path | None = None
+
+
+class CondaRuntime(BaseModel):
+    """conda 可执行文件与版本。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    executable: Path
+    version: str
+
+
+class OverviewData(BaseModel):
+    """概览页一次性展示的运行时信息。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    system: SystemInfo
+    pythons: list[PythonToolchain]
+    conda: CondaRuntime | None
+    venvs: list[Environment]
+    conda_environments: list[Environment]
 
 
 def dedupe_environments(environments: Iterable[Environment]) -> list[Environment]:

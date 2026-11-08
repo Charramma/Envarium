@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from envarium.core.errors import AppError, ErrorKind
-from envarium.core.models import Environment, EnvKind, TerminalKind
+from envarium.core.models import CondaChannel, Environment, EnvKind, TerminalKind
 from envarium.infrastructure.filesystem import (
     directory_metrics,
     metrics_signature,
@@ -77,11 +77,88 @@ def test_create_venv_rejects_non_empty_target(tmp_path: Path, fake_runner) -> No
 def test_create_conda_uses_name_and_version(tmp_path: Path, fake_runner) -> None:
     runner = fake_runner({})
     operations, conda = make_operations(tmp_path, runner)
-    runner.responses[(str(conda), "create", "-y", "-n", "dev", "python=3.12")] = ""
+    runner.responses[
+        (str(conda), "create", "-y", "-n", "dev", "-c", "defaults", "python=3.12")
+    ] = ""
 
-    operations.create_conda("dev", "3.12")
+    operations.create_conda("dev", "3.12", CondaChannel.DEFAULTS)
 
-    assert runner.calls == [(str(conda), "create", "-y", "-n", "dev", "python=3.12")]
+    assert runner.calls == [
+        (str(conda), "create", "-y", "-n", "dev", "-c", "defaults", "python=3.12")
+    ]
+
+
+def test_create_conda_installs_python_when_version_omitted(
+    tmp_path: Path, fake_runner
+) -> None:
+    runner = fake_runner({})
+    operations, conda = make_operations(tmp_path, runner)
+    runner.responses[
+        (str(conda), "create", "-y", "-n", "dev", "-c", "defaults", "python")
+    ] = ""
+
+    operations.create_conda("dev", "", CondaChannel.DEFAULTS)
+
+    assert runner.calls == [
+        (str(conda), "create", "-y", "-n", "dev", "-c", "defaults", "python")
+    ]
+
+
+def test_create_conda_uses_selected_channel(tmp_path: Path, fake_runner) -> None:
+    runner = fake_runner({})
+    operations, conda = make_operations(tmp_path, runner)
+    runner.responses[
+        (str(conda), "create", "-y", "-n", "dev", "-c", "conda-forge", "python=3.12.4")
+    ] = ""
+
+    operations.create_conda("dev", "3.12.4", CondaChannel.CONDA_FORGE)
+
+    assert runner.calls == [
+        (str(conda), "create", "-y", "-n", "dev", "-c", "conda-forge", "python=3.12.4")
+    ]
+
+
+def test_list_conda_python_versions_reads_local_index_and_caches(
+    tmp_path: Path, fake_runner
+) -> None:
+    runner = fake_runner({})
+    operations, conda = make_operations(tmp_path, runner)
+    payload = json.dumps(
+        {
+            "python": [
+                {"version": "3.13.0"},
+                {"version": "3.13.0"},
+                {"version": "3.12.7"},
+                {"version": "3.14.0rc1"},
+                {"version": "3.13"},
+            ]
+        }
+    )
+    runner.responses[
+        (str(conda), "search", "python", "--json", "--offline", "-c", "defaults")
+    ] = payload
+
+    versions = operations.list_conda_python_versions(CondaChannel.DEFAULTS)
+    operations.list_conda_python_versions(CondaChannel.DEFAULTS)
+
+    assert versions == ["3.13.0", "3.12.7"]
+    assert len(runner.calls) == 1
+
+
+def test_list_conda_python_versions_falls_back_to_online_without_local_index(
+    tmp_path: Path, fake_runner
+) -> None:
+    _, conda = make_operations(tmp_path, fake_runner({}))
+    offline = (str(conda), "search", "python", "--json", "--offline", "-c", "defaults")
+    online = (str(conda), "search", "python", "--json", "-c", "defaults")
+    runner = fake_runner(
+        {offline: "", online: json.dumps({"python": [{"version": "3.12.7"}]})},
+        returncodes={offline: 1},
+    )
+    operations = WindowsOperations(runner, conda=conda)
+
+    assert operations.list_conda_python_versions(CondaChannel.DEFAULTS) == ["3.12.7"]
+    assert runner.calls == [offline, online]
 
 
 def test_list_packages_parses_conda_json(tmp_path: Path, fake_runner) -> None:

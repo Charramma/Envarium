@@ -1,11 +1,16 @@
 """展示文案：领域枚举到界面文本的唯一映射。"""
 
-from envarium.core.models import EnvKind, ExportFormat, TerminalKind
+from envarium.core.models import CondaChannel, EnvKind, ExportFormat, TerminalKind
 
 KIND_LABELS: dict[EnvKind, str] = {
     EnvKind.PYTHON: "Python",
     EnvKind.CONDA: "Conda",
     EnvKind.VENV: "Venv",
+}
+
+CHANNEL_LABELS: dict[CondaChannel, str] = {
+    CondaChannel.DEFAULTS: "defaults（官方源）",
+    CondaChannel.CONDA_FORGE: "conda-forge（社区源）",
 }
 
 TERMINAL_LABELS: dict[TerminalKind, str] = {

@@ -12,6 +12,7 @@ from pathlib import Path
 from envarium.core.errors import AppError, ErrorKind, classify_os_error
 from envarium.core.mirrors import Mirror
 from envarium.core.models import (
+    CondaChannel,
     Environment,
     EnvironmentMetrics,
     EnvKind,
@@ -43,6 +44,7 @@ class CondaRequest:
 
     name: str
     python_version: str = ""
+    channel: CondaChannel = CondaChannel.DEFAULTS
 
 
 def merge_environments(groups: Iterable[Sequence[Environment]]) -> list[Environment]:
@@ -99,8 +101,12 @@ class EnvironmentService:
             self._remember_path(request.target)
             return self._require(self.refresh(), key=normalize_path(request.target))
         name = self._validate_name(request.name)
-        self._operations.create_conda(name, request.python_version)
+        self._operations.create_conda(name, request.python_version, request.channel)
         return self._require(self.refresh(), name=name)
+
+    def conda_python_versions(self, channel: CondaChannel) -> list[str]:
+        """列出频道当前可安装的 Python 版本，阻塞调用，应由后台任务执行。"""
+        return self._operations.list_conda_python_versions(channel)
 
     def add_manual(self, path: Path) -> Environment:
         """把环境库之外的目录加入管理。"""
@@ -214,14 +220,8 @@ class EnvironmentService:
             measured[environment.key] = metrics
         return measured
 
-    def activation_command(self, environment: Environment, terminal: TerminalKind) -> str:
-        return self._operations.activation_command(environment, terminal)
-
     def open_terminal(self, environment: Environment, terminal: TerminalKind) -> None:
         self._operations.open_terminal(environment, terminal)
-
-    def open_in_explorer(self, path: Path) -> None:
-        self._operations.open_in_explorer(path)
 
     def configure_mirror(self, mirror: Mirror) -> None:
         """写入用户级 pip / conda 镜像配置；阻塞调用，应由后台任务执行。"""

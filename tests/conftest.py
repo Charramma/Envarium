@@ -17,10 +17,12 @@ class FakeRunner:
         self,
         responses: dict[tuple[str, ...], str] | None = None,
         *,
+        returncodes: dict[tuple[str, ...], int] | None = None,
         stream_lines: dict[tuple[str, ...], list[str]] | None = None,
         stream_returncodes: dict[tuple[str, ...], int] | None = None,
     ) -> None:
         self.responses = dict(responses or {})
+        self.returncodes = dict(returncodes or {})
         self.stream_lines = dict(stream_lines or {})
         self.stream_returncodes = dict(stream_returncodes or {})
         self.calls: list[tuple[str, ...]] = []
@@ -31,7 +33,7 @@ class FakeRunner:
         args = tuple(str(part) for part in command)
         self.calls.append(args)
         assert args in self.responses, f"未预置命令：{args}"
-        return CommandResult(args, 0, self.responses[args], "")
+        return CommandResult(args, self.returncodes.get(args, 0), self.responses[args], "")
 
     def stream(self, command, *, on_line, cwd: Path | None = None) -> int:
         args = tuple(str(part) for part in command)

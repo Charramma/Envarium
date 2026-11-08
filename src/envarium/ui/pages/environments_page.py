@@ -9,7 +9,6 @@ from PySide6.QtCore import QModelIndex, QPoint, QSortFilterProxyModel, Qt, Signa
 from PySide6.QtGui import QAction, QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -46,6 +45,7 @@ from envarium.ui.dialogs import (
 from envarium.ui.labels import EXPORT_LABELS, KIND_LABELS
 from envarium.ui.tasks import BackgroundRunner
 from envarium.ui.theme.tokens import Palette
+from envarium.ui.widgets.combo import ComboBox
 from envarium.ui.widgets.detail_panel import DetailPanel
 from envarium.ui.widgets.env_table import (
     COLUMN_KIND,
@@ -53,6 +53,11 @@ from envarium.ui.widgets.env_table import (
     EnvironmentTableModel,
     KindBadgeDelegate,
 )
+
+
+def _version_branch(version: str) -> str:
+    """版本筛选的粒度：主次版本，例如 3.12.4 -> 3.12。"""
+    return ".".join(version.split(".")[:2])
 
 
 class _EnvironmentFilter(QSortFilterProxyModel):
@@ -78,7 +83,7 @@ class _EnvironmentFilter(QSortFilterProxyModel):
         environment: Environment = self.sourceModel().environment_at(source_row)
         if self._kind is not None and environment.kind is not self._kind:
             return False
-        if self._version and not environment.version.startswith(self._version):
+        if self._version and _version_branch(environment.version) != self._version:
             return False
         if not self._needle:
             return True
@@ -129,14 +134,15 @@ class EnvironmentsPage(QWidget):
         self._search.setClearButtonEnabled(True)
         self._search.setFixedWidth(220)
 
-        self._kind_filter = QComboBox()
-        self._kind_filter.addItem("全部类型", None)
+        self._kind_filter = ComboBox()
+        self._kind_filter.addItem("全部类型", "")
         for kind in EnvKind:
-            self._kind_filter.addItem(KIND_LABELS[kind], kind)
-        self._kind_filter.setFixedWidth(108)
+            self._kind_filter.addItem(KIND_LABELS[kind], kind.value)
 
-        self._version_filter = QComboBox()
-        self._version_filter.setFixedWidth(108)
+        self._version_filter = ComboBox()
+        for combo in (self._kind_filter, self._version_filter):
+            combo.setSizeAdjustPolicy(ComboBox.SizeAdjustPolicy.AdjustToContents)
+            combo.setMinimumWidth(100)
 
         self._refresh_button = QPushButton("刷新")
         self._refresh_button.setObjectName("Primary")
@@ -184,7 +190,7 @@ class EnvironmentsPage(QWidget):
         root.addLayout(left, 1)
         root.addWidget(self._detail)
 
-        self._search.textChanged.connect(self._proxy.set_needle)
+        self._search.textChanged.connect(self._on_search_changed)
         self._kind_filter.currentIndexChanged.connect(self._on_kind_filter_changed)
         self._version_filter.currentIndexChanged.connect(self._on_version_filter_changed)
         self._refresh_button.clicked.connect(self.refresh)
@@ -211,8 +217,8 @@ class EnvironmentsPage(QWidget):
     def show_environments(self, environments: list[Environment]) -> None:
         self._environments = list(environments)
         self._model.set_environments(environments)
-        self._populate_version_filter(environments)
-        self._set_status(f"共 {len(environments)} 个环境")
+        self._rebuild_version_filter()
+        self._update_count_status()
         self.environments_changed.emit(self._environments)
         self._restore_selection()
         self._sync_actions(self._current)
@@ -286,11 +292,7 @@ class EnvironmentsPage(QWidget):
 
     def _build_actions(self) -> None:
         self._terminal_action = self._make_action("打开终端", self._open_terminal)
-        self._explorer_action = self._make_action("打开目录", self._open_in_explorer)
         self._copy_path_action = self._make_action("复制路径", self._copy_path)
-        self._copy_activate_action = self._make_action(
-            "复制激活命令", self._copy_activation
-        )
         self._packages_action = self._make_action("包管理", self._manage_packages)
         self._rename_action = self._make_action("重命名", self._rename_current)
         self._clone_action = self._make_action("克隆", self._clone_current)
@@ -300,9 +302,7 @@ class EnvironmentsPage(QWidget):
         self._forget_action = self._make_action("移除记录", self._forget_current)
         actions = [
             self._terminal_action,
-            self._explorer_action,
             self._copy_path_action,
-            self._copy_activate_action,
             self._packages_action,
             self._rename_action,
             self._clone_action,
@@ -356,13 +356,16 @@ class EnvironmentsPage(QWidget):
             self._metrics = measured
             self._render_detail()
 
-    def _populate_version_filter(self, environments: list[Environment]) -> None:
+    def _rebuild_version_filter(self) -> None:
+        """版本选项只来自当前类型下的环境，避免选出必然为空的条件。"""
+        kind = self._selected_kind()
         previous = self._version_filter.currentData()
         versions = sorted(
             {
-                ".".join(environment.version.split(".")[:2])
-                for environment in environments
+                _version_branch(environment.version)
+                for environment in self._environments
                 if environment.version
+                and (kind is None or environment.kind is kind)
             }
         )
         self._version_filter.blockSignals(True)
@@ -374,6 +377,10 @@ class EnvironmentsPage(QWidget):
         self._version_filter.setCurrentIndex(index if index >= 0 else 0)
         self._version_filter.blockSignals(False)
         self._proxy.set_version(self._version_filter.currentData() or "")
+
+    def _selected_kind(self) -> EnvKind | None:
+        value = self._kind_filter.currentData()
+        return EnvKind(value) if value else None
 
     def _restore_selection(self) -> None:
         wanted = self._current.key if self._current is not None else ""
@@ -390,10 +397,24 @@ class EnvironmentsPage(QWidget):
             self._show_selection(None)
 
     def _on_kind_filter_changed(self, index: int) -> None:
-        self._proxy.set_kind(self._kind_filter.itemData(index))
+        self._proxy.set_kind(self._selected_kind())
+        self._rebuild_version_filter()
+        self._update_count_status()
 
     def _on_version_filter_changed(self, index: int) -> None:
         self._proxy.set_version(self._version_filter.itemData(index) or "")
+        self._update_count_status()
+
+    def _on_search_changed(self, text: str) -> None:
+        self._proxy.set_needle(text)
+        self._update_count_status()
+
+    def _update_count_status(self) -> None:
+        total = len(self._environments)
+        shown = self._proxy.rowCount()
+        self._set_status(
+            f"共 {total} 个环境" if shown == total else f"显示 {shown} / {total} 个环境"
+        )
 
     def _on_current_row_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
         if not current.isValid():
@@ -417,9 +438,7 @@ class EnvironmentsPage(QWidget):
         has_selection = environment is not None
         usable = has_selection and environment.available
         self._terminal_action.setEnabled(usable)
-        self._explorer_action.setEnabled(usable)
         self._copy_path_action.setEnabled(has_selection)
-        self._copy_activate_action.setEnabled(usable)
         self._packages_action.setEnabled(usable)
         self._rename_action.setEnabled(usable and environment.renamable)
         self._clone_action.setEnabled(usable and environment.cloneable)
@@ -478,39 +497,19 @@ class EnvironmentsPage(QWidget):
         except AppError as error:
             QMessageBox.warning(self, "无法打开终端", str(error))
 
-    def _open_in_explorer(self) -> None:
-        if self._current is None:
-            return
-        try:
-            self._service.open_in_explorer(self._current.path)
-        except AppError as error:
-            QMessageBox.warning(self, "无法打开目录", str(error))
-
     def _copy_path(self) -> None:
         if self._current is None:
             return
         QGuiApplication.clipboard().setText(str(self._current.path))
-        self._set_status("已复制环境路径")
-
-    def _copy_activation(self) -> None:
-        if self._current is None:
-            return
-        try:
-            command = self._service.activation_command(
-                self._current, self._config.terminal
-            )
-        except AppError as error:
-            QMessageBox.warning(self, "无法生成激活命令", str(error))
-            return
-        QGuiApplication.clipboard().setText(command)
-        self._set_status("已复制激活命令")
 
     def _manage_packages(self) -> None:
         if self._current is not None:
             self.manage_packages_requested.emit(self._current)
 
     def _create_environment(self) -> None:
-        dialog = NewEnvironmentDialog(self._environments, self)
+        dialog = NewEnvironmentDialog(
+            self._environments, self._service, self._runner, self
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         request = dialog.request()
@@ -592,7 +591,6 @@ class EnvironmentsPage(QWidget):
         self._run_operation(
             "正在导出环境信息…",
             lambda: self._service.export(environment, Path(target), export_format),
-            on_done=lambda path: self._set_status(f"已导出到 {path}"),
         )
 
     def _compare_environments(self) -> None:
@@ -611,7 +609,6 @@ class EnvironmentsPage(QWidget):
             return
         metrics = self._service.metrics(environment)
         if metrics is None:
-            self._set_status("正在统计环境大小…")
             self._runner.submit(
                 lambda: self._service.measure([environment]),
                 on_done=lambda measured: self._confirm_delete(
@@ -648,8 +645,7 @@ class EnvironmentsPage(QWidget):
         self,
         label: str,
         work: Callable[[], object],
-        *,
-        on_done: Callable[[object], None],
+        on_done: Callable[[object], None] | None = None,
     ) -> None:
         busy = QProgressDialog(self)
         busy.setWindowTitle("Envarium")
@@ -662,7 +658,6 @@ class EnvironmentsPage(QWidget):
         busy.setAutoReset(False)
         busy.show()
         self._busy = busy
-        self._set_status(label)
         self._runner.submit(
             work,
             on_done=lambda result: self._finish_operation(result, on_done),
@@ -670,14 +665,14 @@ class EnvironmentsPage(QWidget):
         )
 
     def _finish_operation(
-        self, result: object, on_done: Callable[[object], None]
+        self, result: object, on_done: Callable[[object], None] | None
     ) -> None:
         self._close_busy()
-        on_done(result)
+        if on_done is not None:
+            on_done(result)
 
     def _fail_operation(self, error: Exception) -> None:
         self._close_busy()
-        self._set_status("操作失败", error=True)
         QMessageBox.critical(self, "操作失败", str(error))
 
     def _close_busy(self) -> None:

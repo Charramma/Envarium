@@ -7,7 +7,6 @@ from collections.abc import Callable
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -25,6 +24,7 @@ from envarium.core.ports import LineSink
 from envarium.services.package_service import PackageService
 from envarium.ui.labels import KIND_LABELS
 from envarium.ui.tasks import BackgroundRunner
+from envarium.ui.widgets.combo import ComboBox
 
 _HEADERS = ("名称", "版本")
 _INVALID_INDEX = QModelIndex()
@@ -99,7 +99,7 @@ class PackagesPage(QWidget):
         title = QLabel("包管理")
         title.setObjectName("PageTitle")
 
-        self._combo = QComboBox()
+        self._combo = ComboBox()
         self._combo.setMinimumWidth(340)
 
         self._refresh_button = QPushButton("刷新")

@@ -2,15 +2,17 @@
 
 Windows 桌面端 Python 环境发现与管理工具。统一发现官网安装的 Python、Anaconda / Miniconda、`venv` 虚拟环境，并以一个界面集中展示与管理。
 
-当前版本覆盖需求文档的 M1 与 M2：环境发现与展示、创建 / 删除 / 重命名 / 克隆、包列表与安装卸载、终端激活、信息导出与环境对比。打包、CI 与跨平台支持待后续版本。
+当前版本覆盖需求文档的 M1 与 M2：环境发现与展示、创建 / 删除 / 重命名 / 克隆、包列表与安装卸载、终端激活、信息导出与环境对比，以及概览页与全局运行日志。打包、CI 与跨平台支持待后续版本。
 
 ## 特性
 
+- 概览：默认首页展示操作系统、官网 Python 与 pip（支持一键升级）、conda、venv 与 conda 环境清单
 - 统一发现：PEP 514 注册表枚举标准 Python、`conda env list --json` 枚举 conda 环境、扫描 `pyvenv.cfg` 发现 venv
 - 统一展示：类型徽标、Python 版本、大小、修改时间、可写性与当前 PATH 状态，支持搜索、类型 / 版本筛选与排序
 - 环境管理：创建 venv / conda 环境、删除、重命名、克隆，破坏性操作带路径与占用空间确认
 - 包管理：读取包列表、流式日志安装 / 卸载
 - 快捷操作：打开终端并自动激活、打开目录、复制路径 / 激活命令、导出 requirements.txt / environment.yml / JSON 快照、双环境包差异对比
+- 运行日志：底部可折叠终端面板，实时显示执行的命令与流式输出
 - 设置：Light / Dark 主题、默认终端、venv 扫描目录、pip / conda 镜像源、诊断日志导出
 - 轻量启动：优先读取本地缓存快照，后台刷新真实数据；环境大小异步计算并缓存
 
@@ -31,7 +33,7 @@ uv run ruff check .     # 静态检查
 打包（PyInstaller）：
 
 ```powershell
-uv run pyinstaller --noconfirm --windowed --name Envarium --paths src --exclude-module tkinter src/envarium/__main__.py
+uv run pyinstaller --noconfirm --windowed --name Envarium --icon src/envarium/assets/app.ico --paths src --add-data "src/envarium/assets;envarium/assets" --exclude-module tkinter src/envarium/__main__.py
 ```
 
 ## 代码结构

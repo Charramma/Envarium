@@ -7,7 +7,15 @@ from pathlib import Path
 from typing import Protocol
 
 from envarium.core.mirrors import Mirror
-from envarium.core.models import Environment, Package, TerminalKind
+from envarium.core.models import (
+    CondaChannel,
+    CondaRuntime,
+    Environment,
+    Package,
+    PythonToolchain,
+    SystemInfo,
+    TerminalKind,
+)
 
 LineSink = Callable[[str], None]
 
@@ -39,7 +47,11 @@ class EnvironmentOperator(Protocol):
         self, interpreter: Path, target: Path, *, system_site_packages: bool
     ) -> None: ...
 
-    def create_conda(self, name: str, python_version: str) -> None: ...
+    def create_conda(
+        self, name: str, python_version: str, channel: CondaChannel
+    ) -> None: ...
+
+    def list_conda_python_versions(self, channel: CondaChannel) -> list[str]: ...
 
     def remove(self, environment: Environment) -> None: ...
 
@@ -53,10 +65,20 @@ class EnvironmentOperator(Protocol):
 
     def uninstall(self, environment: Environment, name: str, log: LineSink) -> None: ...
 
-    def activation_command(self, environment: Environment, terminal: TerminalKind) -> str: ...
-
     def configure_mirror(self, mirror: Mirror) -> None: ...
 
     def open_terminal(self, environment: Environment, terminal: TerminalKind) -> None: ...
 
-    def open_in_explorer(self, path: Path) -> None: ...
+
+class RuntimeProbe(Protocol):
+    """探测操作系统、系统 Python 的 pip、conda 运行时。"""
+
+    def system_info(self) -> SystemInfo: ...
+
+    def python_toolchains(
+        self, installations: Sequence[Environment]
+    ) -> list[PythonToolchain]: ...
+
+    def conda_runtime(self) -> CondaRuntime | None: ...
+
+    def upgrade_pip(self, interpreter: Path, log: LineSink) -> None: ...

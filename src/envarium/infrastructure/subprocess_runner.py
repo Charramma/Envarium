@@ -9,6 +9,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from envarium.infrastructure.run_log import RunLog
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
@@ -49,8 +51,15 @@ def _decode_output(raw: bytes) -> str:
 class SubprocessRunner:
     """封装 subprocess 调用，屏蔽 Windows 控制台窗口与编码差异。"""
 
-    def __init__(self, timeout: float = DEFAULT_TIMEOUT_SECONDS) -> None:
+    def __init__(
+        self, timeout: float = DEFAULT_TIMEOUT_SECONDS, run_log: RunLog | None = None
+    ) -> None:
         self._timeout = timeout
+        self._run_log = run_log
+
+    def _record_command(self, args: tuple[str, ...]) -> None:
+        if self._run_log is not None:
+            self._run_log.record_command(args)
 
     def run(
         self,
@@ -61,6 +70,7 @@ class SubprocessRunner:
     ) -> CommandResult:
         args = tuple(str(part) for part in command)
         logger.debug("执行命令：%s", args)
+        self._record_command(args)
         try:
             completed = subprocess.run(
                 args,
@@ -84,6 +94,8 @@ class SubprocessRunner:
             result.stdout,
             result.stderr,
         )
+        if not result.ok and self._run_log is not None:
+            self._run_log.record_error(f"命令失败，返回码 {result.returncode}")
         return result
 
     def stream(
@@ -96,6 +108,7 @@ class SubprocessRunner:
         """逐行输出到回调，用于安装/卸载等需要实时日志的长操作。"""
         args = tuple(str(part) for part in command)
         logger.debug("执行命令（流式）：%s", args)
+        self._record_command(args)
         process = subprocess.Popen(
             args,
             cwd=cwd,
@@ -109,9 +122,13 @@ class SubprocessRunner:
                 line = _decode_output(raw_line).rstrip("\r\n")
                 if line:
                     on_line(line)
+                    if self._run_log is not None:
+                        self._run_log.record_output(line)
             returncode = process.wait()
         finally:
             if process.stdout is not None:
                 process.stdout.close()
         logger.debug("命令结束 rc=%s", returncode)
+        if returncode != 0 and self._run_log is not None:
+            self._run_log.record_error(f"命令失败，返回码 {returncode}")
         return returncode

@@ -52,3 +52,9 @@ class Sidebar(QWidget):
         if button is not None:
             button.setChecked(True)
             self.page_selected.emit(index)
+
+    def clear_selection(self) -> None:
+        self._group.setExclusive(False)
+        for button in self._group.buttons():
+            button.setChecked(False)
+        self._group.setExclusive(True)

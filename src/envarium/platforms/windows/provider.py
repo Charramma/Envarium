@@ -20,7 +20,7 @@ from envarium.platforms.windows.installations import (
     discover_launcher_pythons,
     discover_registered_pythons,
 )
-from envarium.platforms.windows.venv_scanner import read_pyvenv_cfg, scan_virtualenvs
+from envarium.platforms.windows.venv_scanner import read_venv_version, scan_virtualenvs
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class WindowsProvider:
                 name=path.name,
                 path=path,
                 kind=EnvKind.VENV,
-                version=read_pyvenv_cfg(cfg_path).get("version", ""),
+                version=read_venv_version(cfg_path),
                 interpreter=venv_interpreter,
             )
 

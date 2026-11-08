@@ -57,5 +57,29 @@ DARK = Palette(
 )
 
 
+@dataclass(frozen=True, slots=True)
+class TerminalPalette:
+    """运行日志的固定终端配色：深灰底浅灰字，避免纯黑纯白刺眼。"""
+
+    background: str
+    foreground: str
+    command: str
+    info: str
+    error: str
+    timestamp: str
+    border: str
+
+
+TERMINAL = TerminalPalette(
+    background="#1f2227",
+    foreground="#d6d6d6",
+    command="#7cc4ff",
+    info="#9aa0a6",
+    error="#ff8a80",
+    timestamp="#7a828c",
+    border="#33383f",
+)
+
+
 def palette_for(theme: Theme) -> Palette:
     return DARK if theme is Theme.DARK else LIGHT

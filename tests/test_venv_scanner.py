@@ -3,7 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from envarium.core.models import EnvKind
-from envarium.platforms.windows.venv_scanner import read_pyvenv_cfg, scan_virtualenvs
+from envarium.platforms.windows.venv_scanner import (
+    read_pyvenv_cfg,
+    read_venv_version,
+    scan_virtualenvs,
+)
 
 
 def create_venv(path: Path, version: str = "3.13.5", with_interpreter: bool = True) -> Path:
@@ -72,3 +76,48 @@ def test_read_pyvenv_cfg(tmp_path: Path) -> None:
         "include-system-site-packages": "false",
         "version": "3.11.4",
     }
+
+
+def test_read_venv_version_prefers_version_key(tmp_path: Path) -> None:
+    cfg = tmp_path / "pyvenv.cfg"
+    cfg.write_text(
+        "home = C:\\Python313\n"
+        "version = 3.13.5\n"
+        "version_info = 3.13.5.final.0\n",
+        encoding="utf-8",
+    )
+
+    assert read_venv_version(cfg) == "3.13.5"
+
+
+def test_read_venv_version_falls_back_to_version_info(tmp_path: Path) -> None:
+    cfg = tmp_path / "pyvenv.cfg"
+    cfg.write_text(
+        "home = C:\\Python311\n"
+        "implementation = CPython\n"
+        "version_info = 3.11.5.final.0\n",
+        encoding="utf-8",
+    )
+
+    assert read_venv_version(cfg) == "3.11.5"
+
+
+def test_read_venv_version_returns_empty_without_version_fields(tmp_path: Path) -> None:
+    cfg = tmp_path / "pyvenv.cfg"
+    cfg.write_text("home = C:\\Python313\n", encoding="utf-8")
+
+    assert read_venv_version(cfg) == ""
+
+
+def test_scan_reads_version_from_virtualenv_style_cfg(tmp_path: Path) -> None:
+    venv = create_venv(tmp_path / "legacy")
+    (venv / "pyvenv.cfg").write_text(
+        "home = C:\\Python311\n"
+        "version_info = 3.12.4.final.0\n"
+        "virtualenv = 20.24.6\n",
+        encoding="utf-8",
+    )
+
+    found = scan_virtualenvs([tmp_path])
+
+    assert [environment.version for environment in found] == ["3.12.4"]

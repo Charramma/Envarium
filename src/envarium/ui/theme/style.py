@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from pathlib import Path
 from string import Template
 
 from PySide6.QtWidgets import QApplication
 
 from envarium.infrastructure.config_store import Theme
-from envarium.ui.theme.tokens import Palette, palette_for
+from envarium.ui.theme.tokens import DARK, TERMINAL, Palette, palette_for
+
+_ASSETS = Path(__file__).resolve().parents[2] / "assets"
 
 _QSS = Template(
     """
@@ -103,14 +106,46 @@ QPushButton#Danger {
 QPushButton#Danger:hover {
     background: $hover;
 }
-QLineEdit, QComboBox, QListWidget {
+QLineEdit, QListWidget {
     background: $surface;
     border: 1px solid $border;
     border-radius: 6px;
     color: $text;
     padding: 6px 10px;
 }
-QLineEdit:focus, QComboBox:focus {
+QComboBox {
+    background: $surface;
+    border: 1px solid $border;
+    border-radius: 6px;
+    color: $text;
+    min-height: 18px;
+    padding: 6px 10px;
+    /* Fusion 默认用菜单式弹窗，会忽略 maxVisibleItems；0 表示改用列表式弹窗 */
+    combobox-popup: 0;
+}
+QComboBox:hover {
+    border: 1px solid $accent;
+}
+QComboBox:focus, QComboBox:on {
+    border: 1px solid $accent;
+}
+QComboBox:disabled {
+    background: $surface_alt;
+    color: $text_secondary;
+}
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    background: transparent;
+    border: none;
+    width: 26px;
+}
+QComboBox::down-arrow {
+    image: url("$chevron");
+    width: 12px;
+    height: 8px;
+}
+QLineEdit:focus {
     border: 1px solid $accent;
 }
 QPlainTextEdit {
@@ -119,6 +154,16 @@ QPlainTextEdit {
     border-radius: 6px;
     color: $text;
     padding: 6px;
+}
+QPlainTextEdit#RunLog {
+    background: $terminal_background;
+    border: 1px solid $terminal_border;
+    border-radius: 6px;
+    color: $terminal_foreground;
+    padding: 6px;
+}
+QPlainTextEdit#RunLog QScrollBar::handle:vertical {
+    background: $terminal_border;
 }
 QTabWidget::pane {
     border: 1px solid $border;
@@ -134,6 +179,24 @@ QTabBar::tab {
 }
 QTabBar::tab:selected {
     border-bottom: 2px solid $accent;
+    color: $accent;
+}
+QMenuBar {
+    background: $surface_alt;
+    border-bottom: 1px solid $border;
+    color: $text;
+    padding: 0 8px;
+}
+QMenuBar::item {
+    background: transparent;
+    border-radius: 4px;
+    padding: 3px 10px;
+}
+QMenuBar::item:selected {
+    background: $hover;
+}
+QMenuBar::item:pressed {
+    background: $accent_soft;
     color: $accent;
 }
 QMenu {
@@ -154,7 +217,10 @@ QMenu::item:disabled {
 }
 QComboBox QAbstractItemView {
     background: $surface;
-    border: 1px solid $border;
+    border: 0;
+    color: $text;
+    outline: 0;
+    padding: 4px 0;
     selection-background-color: $accent_soft;
     selection-color: $text;
 }
@@ -180,7 +246,7 @@ QHeaderView::section {
     color: $text_secondary;
     padding: 8px;
 }
-QFrame#DetailPanel {
+QFrame#DetailPanel, QFrame#RunLogPanel {
     background: $surface;
     border: 1px solid $border;
     border-radius: 8px;
@@ -208,7 +274,12 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 
 
 def build_stylesheet(palette: Palette) -> str:
-    return _QSS.substitute(asdict(palette))
+    chevron = _ASSETS / (
+        "chevron-down-dark.svg" if palette is DARK else "chevron-down-light.svg"
+    )
+    tokens = {f"terminal_{name}": value for name, value in asdict(TERMINAL).items()}
+    tokens["chevron"] = chevron.as_posix()
+    return _QSS.substitute(asdict(palette) | tokens)
 
 
 def apply_theme(app: QApplication, theme: Theme) -> None:

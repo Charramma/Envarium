@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from envarium.platforms.windows import conda_adapter
 from envarium.platforms.windows.conda_adapter import (
+    find_conda,
     list_conda_environments,
     read_conda_python_version,
 )
@@ -22,6 +24,17 @@ def create_conda_executable(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"")
     return path
+
+
+def test_find_conda_prefers_native_exe_over_bat_wrapper(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = tmp_path / "anaconda3"
+    wrapper = create_conda_executable(root / "Library" / "bin" / "conda.bat")
+    native = create_conda_executable(root / "Scripts" / "conda.exe")
+    monkeypatch.setattr(conda_adapter.shutil, "which", lambda name: str(wrapper))
+
+    assert find_conda() == native
 
 
 def test_list_conda_environments(tmp_path: Path, fake_runner) -> None:

@@ -42,6 +42,16 @@ def read_pyvenv_cfg(cfg_path: Path) -> dict[str, str]:
     return values
 
 
+def read_venv_version(cfg_path: Path) -> str:
+    """读取 venv 的 Python 版本；兼容 virtualenv 只写 version_info 的格式。"""
+    values = read_pyvenv_cfg(cfg_path)
+    version = values.get("version", "")
+    if version:
+        return version
+    # version_info 形如 3.11.5.final.0，取前三段
+    return ".".join(values.get("version_info", "").split(".")[:3])
+
+
 def _subdirectories(directory: Path) -> Iterator[Path]:
     try:
         with os.scandir(directory) as entries:
@@ -62,7 +72,7 @@ def _read_virtualenv(path: Path) -> Environment | None:
         name=path.name,
         path=path,
         kind=EnvKind.VENV,
-        version=read_pyvenv_cfg(path / "pyvenv.cfg").get("version", ""),
+        version=read_venv_version(path / "pyvenv.cfg"),
         interpreter=interpreter,
     )
 

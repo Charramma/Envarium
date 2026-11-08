@@ -16,8 +16,10 @@ from PySide6.QtWidgets import (
 )
 
 from envarium.core.models import Environment, EnvironmentMetrics, Package
-from envarium.ui.formatting import format_size, format_time
+from envarium.ui.formatting import breakable_path, format_size, format_time
 from envarium.ui.labels import KIND_LABELS
+
+_PATH_KEYS = frozenset({"环境路径", "解释器"})
 
 
 class DetailPanel(QFrame):
@@ -89,10 +91,13 @@ class DetailPanel(QFrame):
         for row, (key, value) in enumerate(self._rows()):
             key_label = QLabel(key)
             key_label.setObjectName("DetailKey")
-            value_label = QLabel(value)
+            is_path = key in _PATH_KEYS
+            value_label = QLabel(breakable_path(value) if is_path else value)
             value_label.setObjectName("DetailValue")
             value_label.setWordWrap(True)
             value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            if is_path:
+                value_label.setToolTip(value)
             grid.addWidget(key_label, row, 0, Qt.AlignmentFlag.AlignTop)
             grid.addWidget(value_label, row, 1)
         layout.addLayout(grid)

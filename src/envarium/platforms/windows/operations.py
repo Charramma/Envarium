@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import re
 import shutil
 import subprocess
 from collections.abc import Sequence
@@ -12,7 +12,13 @@ from pathlib import Path
 
 from envarium.core.errors import AppError, ErrorKind, classify_os_error
 from envarium.core.mirrors import Mirror
-from envarium.core.models import Environment, EnvKind, Package, TerminalKind
+from envarium.core.models import (
+    CondaChannel,
+    Environment,
+    EnvKind,
+    Package,
+    TerminalKind,
+)
 from envarium.core.ports import LineSink
 from envarium.infrastructure.filesystem import remove_tree, rename_directory
 from envarium.infrastructure.mirrors import PIP_INI, write_conda_mirror, write_pip_mirror
@@ -34,12 +40,28 @@ def _check(result: CommandResult) -> CommandResult:
     raise AppError(message, detail=detail[-2000:])
 
 
+def _stable_python_versions(payload: str) -> list[str]:
+    """从 conda search 的 JSON 结果提取稳定三段版本号，由新到旧。"""
+    versions = {
+        item["version"]
+        for items in json.loads(payload).values()
+        for item in items
+        if re.fullmatch(r"\d+\.\d+\.\d+", item["version"])
+    }
+    return sorted(
+        versions,
+        key=lambda version: tuple(int(part) for part in version.split(".")),
+        reverse=True,
+    )
+
+
 class WindowsOperations:
     """实现 EnvironmentOperator 协议。"""
 
     def __init__(self, runner: SubprocessRunner, conda: Path | None = None) -> None:
         self._runner = runner
         self._conda_path = conda
+        self._python_versions: dict[CondaChannel, list[str]] = {}
 
     def _conda(self) -> Path:
         executable = self._conda_path or find_conda()
@@ -71,12 +93,38 @@ class WindowsOperations:
         _check(self._runner.run(command, timeout=_CREATE_TIMEOUT))
         logger.info("已创建 venv：%s", target)
 
-    def create_conda(self, name: str, python_version: str) -> None:
-        command = [self._conda(), "create", "-y", "-n", name]
-        if python_version:
-            command.append(f"python={python_version}")
+    def create_conda(
+        self, name: str, python_version: str, channel: CondaChannel
+    ) -> None:
+        # conda 不指定包会创建空环境（没有 python.exe），必须显式安装 python
+        spec = f"python={python_version}" if python_version else "python"
+        command = [self._conda(), "create", "-y", "-n", name, "-c", channel, spec]
         _check(self._runner.run(command, timeout=_CREATE_TIMEOUT))
         logger.info("已创建 conda 环境：%s", name)
+
+    def list_conda_python_versions(self, channel: CondaChannel) -> list[str]:
+        cached = self._python_versions.get(channel)
+        if cached is None:
+            cached = self._python_versions[channel] = self._query_python_versions(
+                channel
+            )
+        return list(cached)
+
+    def _query_python_versions(self, channel: CondaChannel) -> list[str]:
+        """优先读 conda 本地索引（数秒返回），索引不可用时回退联网查询。"""
+        for extra in (["--offline"], []):
+            result = self._runner.run(
+                [self._conda(), "search", "python", "--json", *extra, "-c", channel],
+                timeout=_QUERY_TIMEOUT,
+            )
+            if result.ok:
+                versions = _stable_python_versions(result.stdout)
+                if versions:
+                    return versions
+        raise AppError(
+            "无法获取 conda 可用的 Python 版本。",
+            detail=(result.stderr or result.stdout).strip()[-1000:],
+        )
 
     def remove(self, environment: Environment) -> None:
         if environment.kind is EnvKind.CONDA:
@@ -228,11 +276,3 @@ class WindowsOperations:
             subprocess.Popen(args, cwd=environment.path, creationflags=_NEW_CONSOLE)
         except OSError as error:
             raise classify_os_error(error, environment.path) from error
-
-    def open_in_explorer(self, path: Path) -> None:
-        if not path.is_dir():
-            raise AppError(f"路径不存在：{path}", kind=ErrorKind.NOT_FOUND)
-        try:
-            os.startfile(str(path))
-        except OSError as error:
-            raise classify_os_error(error, path) from error

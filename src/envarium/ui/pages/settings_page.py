@@ -8,7 +8,6 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -26,6 +25,7 @@ from envarium.infrastructure.logging_setup import log_directory
 from envarium.services.environment_service import EnvironmentService
 from envarium.ui.labels import TERMINAL_LABELS
 from envarium.ui.tasks import BackgroundRunner
+from envarium.ui.widgets.combo import ComboBox
 
 
 class SettingsPage(QWidget):
@@ -52,7 +52,7 @@ class SettingsPage(QWidget):
 
         theme_label = QLabel("主题")
         theme_label.setObjectName("DetailValue")
-        self._theme_combo = QComboBox()
+        self._theme_combo = ComboBox()
         self._theme_combo.addItem("浅色", Theme.LIGHT)
         self._theme_combo.addItem("深色", Theme.DARK)
         self._theme_combo.setCurrentIndex(self._theme_combo.findData(config.theme))
@@ -61,7 +61,7 @@ class SettingsPage(QWidget):
 
         terminal_label = QLabel("默认终端")
         terminal_label.setObjectName("DetailValue")
-        self._terminal_combo = QComboBox()
+        self._terminal_combo = ComboBox()
         for kind in TerminalKind:
             self._terminal_combo.addItem(TERMINAL_LABELS[kind], kind)
         self._terminal_combo.setCurrentIndex(
@@ -74,7 +74,7 @@ class SettingsPage(QWidget):
         mirror_label.setObjectName("DetailValue")
         mirror_hint = QLabel("写入用户级 pip.ini 与 conda channels，影响全局终端与包管理操作。")
         mirror_hint.setObjectName("Hint")
-        self._mirror_combo = QComboBox()
+        self._mirror_combo = ComboBox()
         for mirror in MIRRORS:
             self._mirror_combo.addItem(mirror.label, mirror.key)
         self._mirror_combo.setFixedWidth(200)

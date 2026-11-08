@@ -19,10 +19,17 @@ _PYTHON_META_VERSION = re.compile(r"^python-(\d+\.\d+\.\d+)-")
 
 
 def find_conda() -> Path | None:
-    """定位 conda 可执行文件：PATH 优先，其次常见安装目录。"""
+    """定位 conda 可执行文件：优先原生 exe，其次 PATH 与常见安装目录。"""
     on_path = shutil.which("conda")
     if on_path:
-        return Path(on_path)
+        wrapper = Path(on_path)
+        if wrapper.suffix.lower() in {".bat", ".cmd"}:
+            # conda.bat 位于 Library\bin 或 condabin 下，原生 exe 在安装根的 Scripts 里
+            for root in tuple(wrapper.parents)[:3]:
+                native = root / "Scripts" / "conda.exe"
+                if native.is_file():
+                    return native
+        return wrapper
 
     home = Path.home()
     local_app_data = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
