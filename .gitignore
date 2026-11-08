@@ -1,0 +1,24 @@
+# 内部文档，不随仓库分发
+需求文档.md
+AGENTS.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# PyInstaller
+*.spec.bak
+
+# IDE / OS
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini

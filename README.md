@@ -1,0 +1,48 @@
+# Envarium
+
+Windows 桌面端 Python 环境发现与管理工具。统一发现官网安装的 Python、Anaconda / Miniconda、`venv` 虚拟环境，并以一个界面集中展示与管理。
+
+当前版本为可运行骨架：环境发现与展示可用，创建 / 删除 / 包管理尚未实现。
+
+## 特性
+
+- 统一发现：PEP 514 注册表枚举标准 Python、`conda env list --json` 枚举 conda 环境、扫描 `pyvenv.cfg` 发现 venv
+- 统一展示：类型徽标、Python 版本、路径，支持搜索与类型筛选
+- 轻量启动：优先读取本地缓存快照，后台刷新真实数据
+- 纯 PySide6 自绘 Fluent 风格界面，Light / Dark 主题
+
+## 环境要求
+
+- Windows 10 21H2 及以上 / Windows 11
+- 开发需要 Python 3.11+ 与 [uv](https://docs.astral.sh/uv/)
+
+## 开发
+
+```powershell
+uv sync                 # 创建 .venv 并安装依赖
+uv run envarium         # 启动应用
+uv run pytest           # 运行测试
+uv run ruff check .     # 静态检查
+```
+
+打包（PyInstaller）：
+
+```powershell
+uv run pyinstaller --noconfirm --windowed --name Envarium --paths src --exclude-module tkinter src/envarium/__main__.py
+```
+
+## 代码结构
+
+| 路径 | 职责 |
+| --- | --- |
+| [src/envarium/core](src/envarium/core) | 领域模型与平台端口协议，零 Qt 依赖 |
+| [src/envarium/infrastructure](src/envarium/infrastructure) | 子进程执行器、配置存储、日志 |
+| [src/envarium/platforms/windows](src/envarium/platforms/windows) | 注册表 / conda / venv 检测实现 |
+| [src/envarium/services](src/envarium/services) | 环境库编排：合并、去重、缓存 |
+| [src/envarium/ui](src/envarium/ui) | 主窗口、页面、主题令牌、后台任务 |
+
+分层依赖方向：`ui → services → platforms/core → infrastructure`，`core` 不依赖任何其它层。
+
+## 许可证
+
+[MIT](LICENSE)。第三方组件声明见应用内「关于」页与 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
