@@ -2,7 +2,7 @@
 
 Windows 桌面端 Python 环境发现与管理工具。统一发现官网安装的 Python、Anaconda / Miniconda、`venv` 虚拟环境，并以一个界面集中展示与管理。
 
-当前版本覆盖需求文档的 M1 与 M2：环境发现与展示、创建 / 删除 / 重命名 / 克隆、包列表与安装卸载、终端激活、信息导出与环境对比，以及概览页与全局运行日志。打包、CI 与跨平台支持待后续版本。
+当前版本覆盖需求文档的 M1 与 M2：环境发现与展示、创建 / 删除 / 重命名 / 克隆、包列表与安装卸载、终端激活、信息导出与环境对比，以及概览页与全局运行日志。支持 PyInstaller 打包为免安装目录，CI 与跨平台支持待后续版本。
 
 ## 特性
 
@@ -33,8 +33,10 @@ uv run ruff check .     # 静态检查
 打包（PyInstaller）：
 
 ```powershell
-uv run pyinstaller --noconfirm --windowed --name Envarium --icon src/envarium/assets/app.ico --paths src --add-data "src/envarium/assets;envarium/assets" --exclude-module tkinter src/envarium/__main__.py
+powershell -ExecutionPolicy Bypass -File scripts/build.ps1
 ```
+
+产物：`dist\Envarium\`（免安装目录）与 `dist\Envarium-v<版本>-windows-x64.zip`。构建配置见 [Envarium.spec](Envarium.spec)。
 
 ## 代码结构
 
