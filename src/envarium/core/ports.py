@@ -31,10 +31,6 @@ class PlatformProvider(Protocol):
         """枚举 conda 环境（含 base）。"""
         ...
 
-    def scan_virtualenvs(self, roots: Sequence[Path]) -> list[Environment]:
-        """扫描指定根目录下的 venv 环境。"""
-        ...
-
     def inspect(self, path: Path) -> Environment | None:
         """把用户指定的目录识别为环境；无法识别时返回 None。"""
         ...

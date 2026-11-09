@@ -7,13 +7,13 @@ Windows 桌面端 Python 环境发现与管理工具。统一发现官网安装�
 ## 特性
 
 - 概览：默认首页展示操作系统、官网 Python 与 pip（支持一键升级）、conda、venv 与 conda 环境清单
-- 统一发现：PEP 514 注册表枚举标准 Python、`conda env list --json` 枚举 conda 环境、扫描 `pyvenv.cfg` 发现 venv
+- 统一发现：PEP 514 注册表枚举标准 Python、`conda env list --json` 枚举 conda 环境；venv 环境通过创建或「添加已有环境」纳入
 - 统一展示：类型徽标、Python 版本、大小、修改时间、可写性与当前 PATH 状态，支持搜索、类型 / 版本筛选与排序
 - 环境管理：创建 venv / conda 环境、删除、重命名、克隆，破坏性操作带路径与占用空间确认
 - 包管理：读取包列表、流式日志安装 / 卸载
 - 快捷操作：打开终端并自动激活、复制路径、导出 requirements.txt / environment.yml / JSON 快照、双环境包差异对比
 - 运行日志：底部可折叠终端面板，实时显示执行的命令与流式输出
-- 设置：Light / Dark 主题、默认终端、venv 扫描目录、pip / conda 镜像源、诊断日志导出
+- 设置：Light / Dark 主题、默认终端、pip / conda 镜像源、诊断日志导出
 - 轻量启动：优先读取本地缓存快照，后台刷新真实数据；环境大小异步计算并缓存
 
 ## 环境要求

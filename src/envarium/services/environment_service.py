@@ -80,7 +80,6 @@ class EnvironmentService:
             merge_environments(
                 [
                     self._provider.discover_conda_environments(),
-                    self._provider.scan_virtualenvs(config.venv_scan_roots),
                     self._provider.discover_installations(),
                     [self._refresh_manual(item) for item in config.manual_environments],
                 ]

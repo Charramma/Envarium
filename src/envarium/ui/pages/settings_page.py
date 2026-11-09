@@ -1,4 +1,4 @@
-"""设置页：主题、默认终端、venv 扫描目录与日志。"""
+"""设置页：主题、默认终端、镜像源与日志。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
-    QListWidget,
     QMessageBox,
     QPushButton,
     QVBoxLayout,
@@ -30,7 +29,6 @@ from envarium.ui.widgets.combo import ComboBox
 
 class SettingsPage(QWidget):
     theme_changed = Signal(object)
-    scan_roots_changed = Signal()
 
     def __init__(
         self,
@@ -88,27 +86,6 @@ class SettingsPage(QWidget):
         mirror_row.addWidget(self._mirror_button)
         mirror_row.addWidget(self._mirror_status, 1)
 
-        roots_label = QLabel("venv 扫描目录")
-        roots_label.setObjectName("DetailValue")
-        roots_hint = QLabel("在下列目录中（最多 3 层）查找 venv 环境。")
-        roots_hint.setObjectName("Hint")
-
-        self._roots_list = QListWidget()
-        self._roots_list.setFixedHeight(150)
-        self._roots_list.setMaximumWidth(640)
-        for root in config.venv_scan_roots:
-            self._roots_list.addItem(str(root))
-
-        add_button = QPushButton("添加目录")
-        add_button.clicked.connect(self._add_scan_root)
-        remove_button = QPushButton("移除")
-        remove_button.clicked.connect(self._remove_scan_root)
-        roots_buttons = QHBoxLayout()
-        roots_buttons.setSpacing(8)
-        roots_buttons.addWidget(add_button)
-        roots_buttons.addWidget(remove_button)
-        roots_buttons.addStretch(1)
-
         log_label = QLabel("日志")
         log_label.setObjectName("DetailValue")
         log_path = QLabel(str(log_directory()))
@@ -139,11 +116,6 @@ class SettingsPage(QWidget):
         layout.addWidget(mirror_hint)
         layout.addLayout(mirror_row)
         layout.addSpacing(16)
-        layout.addWidget(roots_label)
-        layout.addWidget(roots_hint)
-        layout.addWidget(self._roots_list)
-        layout.addLayout(roots_buttons)
-        layout.addSpacing(16)
         layout.addWidget(log_label)
         layout.addWidget(log_path)
         layout.addLayout(log_buttons)
@@ -164,29 +136,6 @@ class SettingsPage(QWidget):
             return
         self._config.terminal = terminal
         self._config_store.save(self._config)
-
-    def _add_scan_root(self) -> None:
-        directory = QFileDialog.getExistingDirectory(self, "选择 venv 扫描目录")
-        if not directory:
-            return
-        path = Path(directory)
-        if path in self._config.venv_scan_roots:
-            return
-        self._config.venv_scan_roots.append(path)
-        self._roots_list.addItem(str(path))
-        self._save_scan_roots()
-
-    def _remove_scan_root(self) -> None:
-        row = self._roots_list.currentRow()
-        if row < 0:
-            return
-        self._roots_list.takeItem(row)
-        del self._config.venv_scan_roots[row]
-        self._save_scan_roots()
-
-    def _save_scan_roots(self) -> None:
-        self._config_store.save(self._config)
-        self.scan_roots_changed.emit()
 
     def _apply_mirror(self) -> None:
         mirror = self._mirrors[self._mirror_combo.currentData()]

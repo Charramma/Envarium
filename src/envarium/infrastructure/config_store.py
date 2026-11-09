@@ -25,7 +25,6 @@ class AppConfig(BaseModel):
 
     theme: Theme = Theme.LIGHT
     terminal: TerminalKind = TerminalKind.POWERSHELL
-    venv_scan_roots: list[Path] = Field(default_factory=list)
     manual_environments: list[Environment] = Field(default_factory=list)
     known_environments: list[Environment] = Field(default_factory=list)
 

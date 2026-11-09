@@ -278,8 +278,7 @@ class EnvironmentsPage(QWidget):
         empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         empty_hint = QLabel(
-            "点击「新建环境」创建 venv，或用「添加已有环境」纳入扫描范围外的环境；"
-            "也可以在「设置」中添加 venv 扫描目录。"
+            "点击「新建环境」创建 venv 或 conda 环境，或用「添加已有环境」纳入本机上的其他环境。"
         )
         empty_hint.setObjectName("EmptyHint")
         empty_hint.setWordWrap(True)

@@ -44,24 +44,17 @@ class StubProvider:
         self,
         installations: list[Environment] | None = None,
         conda: list[Environment] | None = None,
-        virtualenvs: list[Environment] | None = None,
         inspected: dict[str, Environment] | None = None,
     ) -> None:
         self._installations = installations or []
         self._conda = conda or []
-        self._virtualenvs = virtualenvs or []
         self._inspected = inspected or {}
-        self.requested_roots: list[Path] = []
 
     def discover_installations(self) -> list[Environment]:
         return self._installations
 
     def discover_conda_environments(self) -> list[Environment]:
         return self._conda
-
-    def scan_virtualenvs(self, roots: list[Path]) -> list[Environment]:
-        self.requested_roots = list(roots)
-        return self._virtualenvs
 
     def inspect(self, path: Path) -> Environment | None:
         return self._inspected.get(str(path))
@@ -103,23 +96,19 @@ def test_merge_sorts_by_name(tmp_path: Path) -> None:
     assert [environment.name for environment in merged] == ["alpha", "zulu"]
 
 
-def test_refresh_persists_snapshot_and_scans_configured_roots(tmp_path: Path) -> None:
+def test_refresh_persists_snapshot(tmp_path: Path) -> None:
     store = ConfigStore(tmp_path / "config.json")
     install_root = tmp_path / "Python313"
     conda_root = tmp_path / "miniconda3"
-    venv_root = tmp_path / "project" / ".venv"
     provider = StubProvider(
         installations=[make_environment(install_root, EnvKind.PYTHON, "Python 3.13")],
         conda=[make_environment(conda_root, EnvKind.CONDA, "base")],
-        virtualenvs=[make_environment(venv_root, EnvKind.VENV, ".venv")],
     )
-    store.save(AppConfig(venv_scan_roots=[tmp_path / "project"]))
     service = EnvironmentService(provider, StubOperations(), store)
 
     refreshed = service.refresh()
 
-    assert provider.requested_roots == [tmp_path / "project"]
-    assert {environment.name for environment in refreshed} == {"Python 3.13", "base", ".venv"}
+    assert {environment.name for environment in refreshed} == {"Python 3.13", "base"}
     assert [environment.name for environment in service.cached()] == [
         environment.name for environment in refreshed
     ]

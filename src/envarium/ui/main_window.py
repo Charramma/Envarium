@@ -108,7 +108,6 @@ class MainWindow(QMainWindow):
         self._environments_page.manage_packages_requested.connect(self._open_packages)
         self._overview_page.refresh_requested.connect(self._environments_page.refresh)
         self._settings_page.theme_changed.connect(self._on_theme_changed)
-        self._settings_page.scan_roots_changed.connect(self._environments_page.refresh)
 
     def _open_packages(self, environment: Environment) -> None:
         self._packages_page.show_environment(environment)

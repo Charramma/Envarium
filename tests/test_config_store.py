@@ -25,7 +25,6 @@ def test_config_roundtrip(tmp_path: Path) -> None:
         AppConfig(
             theme=Theme.DARK,
             terminal=TerminalKind.CMD,
-            venv_scan_roots=[tmp_path],
             manual_environments=[environment],
             known_environments=[environment],
         )
@@ -35,6 +34,5 @@ def test_config_roundtrip(tmp_path: Path) -> None:
 
     assert loaded.theme is Theme.DARK
     assert loaded.terminal is TerminalKind.CMD
-    assert loaded.venv_scan_roots == [tmp_path]
     assert loaded.manual_environments == [environment]
     assert loaded.known_environments == [environment]

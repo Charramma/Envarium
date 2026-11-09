@@ -5,7 +5,6 @@ from __future__ import annotations
 import itertools
 import logging
 import shutil
-from collections.abc import Sequence
 from pathlib import Path
 
 from envarium.core.models import Environment, EnvKind, dedupe_environments
@@ -20,7 +19,7 @@ from envarium.platforms.windows.installations import (
     discover_launcher_pythons,
     discover_registered_pythons,
 )
-from envarium.platforms.windows.venv_scanner import read_venv_version, scan_virtualenvs
+from envarium.platforms.windows.venv_config import read_venv_version
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +44,6 @@ class WindowsProvider:
         if executable is None:
             return []
         return list_conda_environments(self._runner, executable)
-
-    def scan_virtualenvs(self, roots: Sequence[Path]) -> list[Environment]:
-        return scan_virtualenvs(roots)
 
     def inspect(self, path: Path) -> Environment | None:
         if not path.is_dir():
